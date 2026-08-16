@@ -134,8 +134,8 @@ async function obtenerParametrosBeneficio() {
     return beneficio.obtenerParametros();
 }
 
-async function actualizarParametrosBeneficio(valorMinimoCompra, minimoReferidosVisitados, auditCtx = {}) {
-    return beneficio.actualizarParametros(valorMinimoCompra, minimoReferidosVisitados, auditCtx);
+async function actualizarParametrosBeneficio(valorMinimoCompra, minimoReferidosVisitados, valorMinimoCompraReferido, auditCtx = {}) {
+    return beneficio.actualizarParametros(valorMinimoCompra, minimoReferidosVisitados, valorMinimoCompraReferido, auditCtx);
 }
 
 module.exports = {

@@ -102,6 +102,10 @@ async function crearBeneficio(compraId, auditCtx) {
     return beneficio.crear(compraId, auditCtx);
 }
 
+async function listarReferidosDeCompraBeneficio(compraId) {
+    return beneficio.listarReferidosDeCompra(compraId);
+}
+
 module.exports = {
     listarPendientes, listarEnGestion, buscarPendientes, buscarEnGestion,
     agendarVisita, cambiarEstadoProspecto, crearProspectoYAgendar, listarAsesoresComerciales,
@@ -109,5 +113,5 @@ module.exports = {
     obtenerDetalleVisita, editarVisita, cancelarVisita, cambiarEstadoVisita,
     listarVisitasFallidas, kpiVisitasFallidas,
     buscarVisitasVisitadas, buscarVisitasPorGestionar, buscarVisitasFallidas,
-    listarComprasElegiblesBeneficio, crearBeneficio,
+    listarComprasElegiblesBeneficio, crearBeneficio, listarReferidosDeCompraBeneficio,
 };

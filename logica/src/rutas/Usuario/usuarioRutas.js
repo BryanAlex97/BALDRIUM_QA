@@ -68,8 +68,8 @@ router.get('/parametros-beneficio', async (_req, res) => {
 router.put('/parametros-beneficio', async (req, res) => {
     const auditCtx = { ip: extraerIP(req), device: extraerDispositivo(req), actor: req.usuario };
     try {
-        const { valorMinimoCompra, minimoReferidosVisitados } = req.body;
-        const result = await svc.actualizarParametrosBeneficio(valorMinimoCompra, minimoReferidosVisitados, auditCtx);
+        const { valorMinimoCompra, minimoReferidosVisitados, valorMinimoCompraReferido } = req.body;
+        const result = await svc.actualizarParametrosBeneficio(valorMinimoCompra, minimoReferidosVisitados, valorMinimoCompraReferido, auditCtx);
         res.json(result);
     } catch (err) {
         res.status(400).json({ error: err.message });

@@ -234,11 +234,14 @@ const beneficio = {
     obtenerParametros: () =>
         _req('GET', '/beneficios/parametros'),
 
-    actualizarParametros: (valorMinimoCompra, minimoReferidosVisitados, auditCtx) =>
-        _req('PUT', '/beneficios/parametros', { valorMinimoCompra, minimoReferidosVisitados, auditCtx }),
+    actualizarParametros: (valorMinimoCompra, minimoReferidosVisitados, valorMinimoCompraReferido, auditCtx) =>
+        _req('PUT', '/beneficios/parametros', { valorMinimoCompra, minimoReferidosVisitados, valorMinimoCompraReferido, auditCtx }),
 
     listarComprasElegibles: () =>
         _req('GET', '/beneficios/compras-elegibles'),
+
+    listarReferidosDeCompra: (compraId) =>
+        _req('GET', `/beneficios/compras/${compraId}/referidos`),
 
     crear: (compraId, auditCtx) =>
         _req('POST', '/beneficios', { compraId, auditCtx }),
@@ -246,11 +249,57 @@ const beneficio = {
     listarEnRevision: () =>
         _req('GET', '/beneficios/revision'),
 
+    buscarEnRevision: (q) =>
+        _req('GET', `/beneficios/revision/buscar?q=${encodeURIComponent(q)}`),
+
+    listarReferidosDeCompraDetallado: (compraId) =>
+        _req('GET', `/beneficios/compras/${compraId}/referidos-detallado`),
+
     listarProductosDisponibles: () =>
         _req('GET', '/beneficios/productos-disponibles'),
 
-    cambiarEstado: (beneficioId, estado, inventarioId, auditCtx) =>
-        _req('POST', `/beneficios/${beneficioId}/estado`, { estado, inventarioId, auditCtx }),
+    cambiarEstado: (beneficioId, estado, inventarioId, motivo, auditCtx) =>
+        _req('POST', `/beneficios/${beneficioId}/estado`, { estado, inventarioId, motivo, auditCtx }),
+
+    listarAprobadosRecientes: (dias) =>
+        _req('GET', `/beneficios/aprobados-recientes${dias ? `?dias=${dias}` : ''}`),
+
+    buscarAprobadosRecientes: (q) =>
+        _req('GET', `/beneficios/aprobados-recientes/buscar?q=${encodeURIComponent(q)}`),
+
+    listarRechazadosRecientes: (dias) =>
+        _req('GET', `/beneficios/rechazados-recientes${dias ? `?dias=${dias}` : ''}`),
+
+    buscarRechazadosRecientes: (q) =>
+        _req('GET', `/beneficios/rechazados-recientes/buscar?q=${encodeURIComponent(q)}`),
+
+    kpiBeneficiosRecientes: (dias) =>
+        _req('GET', `/beneficios/kpi-recientes${dias ? `?dias=${dias}` : ''}`),
 };
 
-module.exports = { trabajador, inventario, auditoria, visita, compra, prospecto, beneficio };
+// ─── Aprobar Compras (Auxiliar Administrativo) ─────────────────────────────
+
+const aprobarCompras = {
+    listarPendientes: (dias) =>
+        _req('GET', `/aprobar-compras/pendientes${dias ? `?dias=${dias}` : ''}`),
+
+    listarAprobadas: (dias) =>
+        _req('GET', `/aprobar-compras/aprobadas${dias ? `?dias=${dias}` : ''}`),
+
+    listarRechazadas: (dias) =>
+        _req('GET', `/aprobar-compras/rechazadas${dias ? `?dias=${dias}` : ''}`),
+
+    buscarPendientes: (q) =>
+        _req('GET', `/aprobar-compras/pendientes/buscar?q=${encodeURIComponent(q)}`),
+
+    buscarAprobadas: (q) =>
+        _req('GET', `/aprobar-compras/aprobadas/buscar?q=${encodeURIComponent(q)}`),
+
+    buscarRechazadas: (q) =>
+        _req('GET', `/aprobar-compras/rechazadas/buscar?q=${encodeURIComponent(q)}`),
+
+    cambiarEstado: (compraId, estado, motivo, auditCtx) =>
+        _req('POST', `/aprobar-compras/${compraId}/estado`, { estado, motivo, auditCtx }),
+};
+
+module.exports = { trabajador, inventario, auditoria, visita, compra, prospecto, beneficio, aprobarCompras };

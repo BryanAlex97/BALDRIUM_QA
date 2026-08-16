@@ -104,6 +104,15 @@ router.get('/beneficios/compras-elegibles', soloTelemercader, async (_req, res) 
     }
 });
 
+router.get('/beneficios/compras/:id/referidos', soloTelemercader, async (req, res) => {
+    try {
+        const rows = await svc.listarReferidosDeCompraBeneficio(Number(req.params.id));
+        res.json(rows);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 router.post('/beneficios', soloTelemercader, async (req, res) => {
     try {
         const auditCtx = { ip: extraerIP(req), device: extraerDispositivo(req), actor: req.usuario };
