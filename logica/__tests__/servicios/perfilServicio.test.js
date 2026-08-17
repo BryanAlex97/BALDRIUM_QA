@@ -14,6 +14,11 @@ jest.mock('../../src/infraestructura/persistenciaCliente', () => ({
 const { trabajador, auditoria } = require('../../src/infraestructura/persistenciaCliente');
 const { obtenerPerfil, actualizarPerfil, cambiarContrasena } = require('../../src/servicios/Usuario/perfilServicio');
 
+beforeAll(() => {
+  process.env.JWT_SECRET = 'clave-de-prueba';
+  process.env.JWT_EXPIRES_IN = '8h';
+});
+
 afterEach(() => {
   jest.clearAllMocks();
 });
@@ -34,7 +39,6 @@ describe('perfilServicio.obtenerPerfil', () => {
       },
       roles: ['Director'],
     });
-
     const perfil = await obtenerPerfil('2001');
     expect(perfil.cedula).toBe('2001');
     expect(perfil.roles).toEqual(['Director']);
@@ -111,16 +115,24 @@ describe('perfilServicio.cambiarContrasena', () => {
     expect(auditoria.registrarSistema).toHaveBeenCalledWith(expect.objectContaining({ resultado: 'FALLIDO' }));
   });
 
-  test('cambia la contraseña correctamente y audita el éxito', async () => {
+  test('cambia la contraseña correctamente, audita el éxito, y reemite un token con debeCambiarContrasena=false', async () => {
     const bcrypt = require('bcrypt');
-    trabajador.buscarPorCedula.mockResolvedValue({ trabajador: { Cedula: '2001', Contrasena: 'hashReal' }, roles: [] });
+    trabajador.buscarPorCedula.mockResolvedValue({
+      trabajador: { Cedula: '2001', Nombre: 'Fer', Contrasena: 'hashReal' },
+      roles: ['Director'],
+    });
     jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
     trabajador.actualizarContrasena.mockResolvedValue();
 
-    await cambiarContrasena('2001', 'actual123', 'nueva456', { actor: { nombre: 'Fer' } });
+    const resultado = await cambiarContrasena('2001', 'actual123', 'nueva456', { actor: { nombre: 'Fer' } });
 
-    expect(trabajador.actualizarContrasena).toHaveBeenCalledWith('2001', 'nueva456');
+    expect(trabajador.actualizarContrasena).toHaveBeenCalledWith('2001', 'nueva456', false);
     expect(auditoria.registrarSistema).toHaveBeenCalledWith(expect.objectContaining({ resultado: 'EXITOSO' }));
+
+    expect(resultado).toHaveProperty('token');
+    const jwt = require('jsonwebtoken');
+    const payload = jwt.verify(resultado.token, process.env.JWT_SECRET);
+    expect(payload.debeCambiarContrasena).toBe(false);
   });
 
 });

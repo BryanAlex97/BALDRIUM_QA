@@ -28,7 +28,7 @@ describe('recuperacionServicio.olvideMiContrasena — Escenario 1 (correo existe
 
     const resultado = await olvideMiContrasena('fer@baldrium.com');
 
-    expect(trabajador.actualizarContrasena).toHaveBeenCalledWith('2001', expect.any(String));
+    expect(trabajador.actualizarContrasena).toHaveBeenCalledWith('2001', expect.any(String), true);
     expect(enviarContrasenaTemp).toHaveBeenCalledWith('fer@baldrium.com', 'Fer', expect.any(String));
     expect(resultado.mensaje).toMatch(/recibirás las instrucciones/);
   });
