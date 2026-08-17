@@ -1,6 +1,7 @@
 const express  = require('express');
 const router   = express.Router();
 const svc = require('../../servicios/Usuario/usuarioServicio');
+const { ValidationError, ConflictError } = svc;
 const { verificarToken, verificarRol } = require('../../seguridad/jwtMiddleware');
 const { extraerIP, extraerDispositivo } = require('../../utils/requestHelpers');
 
@@ -43,10 +44,8 @@ router.post('/', async (req, res) => {
         const nuevo = await svc.crear(datos, roles || [], auditCtx);
         res.status(201).json({ mensaje: 'Trabajador creado exitosamente.', trabajador: nuevo });
     } catch (err) {
-        if (err.message.includes('ya está registrada') || err.message.includes('ya está en uso')) {
-            return res.status(409).json({ error: err.message });
-        }
-        if (err.message.includes('requeridos')) return res.status(400).json({ error: err.message });
+        if (err instanceof ConflictError)  return res.status(409).json({ error: err.message });
+        if (err instanceof ValidationError) return res.status(400).json({ error: err.message });
         console.error('Error al crear usuario:', err);
         res.status(500).json({ error: 'Error interno del servidor.' });
     }
@@ -85,7 +84,8 @@ router.put('/:cedula', async (req, res) => {
         res.json({ mensaje: 'Trabajador actualizado correctamente.' });
     } catch (err) {
         if (err.message.includes('no encontrado')) return res.status(404).json({ error: err.message });
-        if (err.message.includes('ya está en uso')) return res.status(409).json({ error: err.message });
+        if (err instanceof ConflictError)  return res.status(409).json({ error: err.message });
+        if (err instanceof ValidationError) return res.status(400).json({ error: err.message });
         console.error('Error al actualizar usuario:', err);
         res.status(500).json({ error: 'Error interno del servidor.' });
     }

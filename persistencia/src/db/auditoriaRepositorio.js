@@ -89,8 +89,9 @@ async function listarSistema(limite = 400) {
 async function listarSistemaInventario(limite = 400) {
     const lim = Math.min(Math.max(parseInt(limite, 10) || 400, 1), 1000);
     const [rows] = await pool.query(
-        `SELECT CedulaTrabajador AS CedulaResponsable, NombreTrabajador AS NombreResponsable,
-                TipoAccion, Descripcion, ValorAnterior, ValorNuevo, FechaHora, RegistroAfectadoID
+        `SELECT ID, CedulaTrabajador AS CedulaResponsable, NombreTrabajador AS NombreResponsable,
+                TipoAccion, Descripcion, ValorAnterior, ValorNuevo, DireccionIP, Dispositivo,
+                Resultado, FechaHora, RegistroAfectadoID
          FROM auditoria_sistema
          WHERE TablaAfectada = 'inventario'
          ORDER BY FechaHora DESC

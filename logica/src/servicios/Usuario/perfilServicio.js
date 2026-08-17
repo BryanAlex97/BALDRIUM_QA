@@ -1,6 +1,7 @@
 const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
 const { trabajador, auditoria } = require('../../infraestructura/persistenciaCliente');
+const { ValidationError, validarCamposTrabajador } = require('../../utils/validacionesTrabajador');
 
 async function obtenerPerfil(cedula) {
     const resultado = await trabajador.buscarPorCedula(cedula);
@@ -21,8 +22,9 @@ async function obtenerPerfil(cedula) {
 async function actualizarPerfil(cedula, datos, auditCtx = {}) {
     const { Nombre, Celular, Telefono, CorreoElectronico, Direccion } = datos;
     if (!Nombre || !Celular || !CorreoElectronico || !Direccion) {
-        throw new Error('Nombre, celular, correo y dirección son requeridos.');
+        throw new ValidationError('Nombre, celular, correo y dirección son requeridos.');
     }
+    validarCamposTrabajador(datos);
 
     const anterior = await obtenerPerfil(cedula);
     await trabajador.actualizarPerfil(cedula, { Nombre, Celular, Telefono, CorreoElectronico, Direccion });
@@ -41,7 +43,10 @@ async function actualizarPerfil(cedula, datos, auditCtx = {}) {
 
 async function cambiarContrasena(cedula, contrasenaActual, nuevaContrasena, auditCtx = {}) {
     if (!contrasenaActual || !nuevaContrasena) {
-        throw new Error('La contraseña actual y la nueva son requeridas.');
+        throw new ValidationError('La contraseña actual y la nueva son requeridas.');
+    }
+    if (nuevaContrasena.length < 6) {
+        throw new ValidationError('La nueva contraseña debe tener al menos 6 caracteres.');
     }
     const resultado = await trabajador.buscarPorCedula(cedula);
     if (!resultado) throw new Error('Usuario no encontrado.');
@@ -56,7 +61,7 @@ async function cambiarContrasena(cedula, contrasenaActual, nuevaContrasena, audi
             resultado: 'FALLIDO',
             descripcion: `Intento fallido de cambio de contraseña: contraseña actual incorrecta`,
         });
-        throw new Error('La contraseña actual es incorrecta.');
+        throw new ValidationError('La contraseña actual es incorrecta.');
     }
 
     // requiereCambio=false: limpia el flag de cambio obligatorio (si venía de una
@@ -84,4 +89,4 @@ async function cambiarContrasena(cedula, contrasenaActual, nuevaContrasena, audi
     return { token };
 }
 
-module.exports = { obtenerPerfil, actualizarPerfil, cambiarContrasena };
+module.exports = { obtenerPerfil, actualizarPerfil, cambiarContrasena, ValidationError };

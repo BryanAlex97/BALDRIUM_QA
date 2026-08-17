@@ -14,7 +14,7 @@ async function listarAuditoriaInfo(limite = 400) {
     return await auditoria.listarSistemaInventario(limite);
 }
 
-function _validar({ Nombre, Tipo, Valor, Cantidad }) {
+function _validar({ Nombre, Tipo, Valor, Cantidad, FechaVencimiento }) {
     if (!Nombre || !Tipo || Valor === undefined || Valor === null || Cantidad === undefined) {
         throw new Error('Nombre, tipo, valor y cantidad son requeridos.');
     }
@@ -23,6 +23,22 @@ function _validar({ Nombre, Tipo, Valor, Cantidad }) {
     }
     if (parseInt(Cantidad) < 0) throw new Error('La cantidad no puede ser negativa.');
     if (parseFloat(Valor) < 0)  throw new Error('El valor no puede ser negativo.');
+
+    if (Tipo === 'Alimentacion') {
+        if (!FechaVencimiento) {
+            throw new Error('La fecha de vencimiento es requerida para productos de tipo Alimentación.');
+        }
+        if (isNaN(new Date(FechaVencimiento).getTime())) {
+            throw new Error('La fecha de vencimiento no es válida.');
+        }
+    }
+}
+
+// Solo tiene sentido para alimentos: se descarta silenciosamente para
+// cualquier otro tipo, así nunca queda una fecha de vencimiento "fantasma"
+// en un producto que dejó de ser alimento (o nunca lo fue).
+function _normalizarVencimiento(datos) {
+    return { ...datos, FechaVencimiento: datos.Tipo === 'Alimentacion' ? datos.FechaVencimiento : null };
 }
 
 async function crear(datos, auditCtx = {}) {
@@ -33,7 +49,7 @@ async function crear(datos, auditCtx = {}) {
         throw new Error(`El producto "${nombre}" ya está registrado.`);
     }
 
-    const id   = await inventario.crearProducto({ ...datos, Nombre: nombre });
+    const id   = await inventario.crearProducto(_normalizarVencimiento({ ...datos, Nombre: nombre }));
     const nuevo = await inventario.buscarPorId(id);
 
     auditoria.registrarSistema({
@@ -41,7 +57,7 @@ async function crear(datos, auditCtx = {}) {
         nombreTrabajador: auditCtx.actor?.nombre,
         tipoAccion: 'CREAR', tablaAfectada: 'inventario',
         registroAfectadoID: nuevo.ID,
-        valorNuevo: { Nombre: nuevo.Nombre, Tipo: nuevo.Tipo, Valor: nuevo.Valor, Cantidad: nuevo.Cantidad },
+        valorNuevo: { Nombre: nuevo.Nombre, Tipo: nuevo.Tipo, Valor: nuevo.Valor, Cantidad: nuevo.Cantidad, FechaVencimiento: nuevo.FechaVencimiento },
         direccionIP: auditCtx.ip, dispositivo: auditCtx.device,
         resultado: 'EXITOSO',
         descripcion: `Producto creado: ${nuevo.Nombre} (ID: ${nuevo.ID})`,
@@ -72,15 +88,16 @@ async function actualizar(id, datos, auditCtx = {}) {
         throw new Error(`Ya existe otro producto con el nombre "${nombre}".`);
     }
 
-    await inventario.actualizarProducto(id, { ...datos, Nombre: nombre });
+    const datosNormalizados = _normalizarVencimiento({ ...datos, Nombre: nombre });
+    await inventario.actualizarProducto(id, datosNormalizados);
 
     auditoria.registrarSistema({
         cedulaTrabajador: auditCtx.actor?.cedula,
         nombreTrabajador: auditCtx.actor?.nombre,
         tipoAccion: 'EDITAR', tablaAfectada: 'inventario',
         registroAfectadoID: id,
-        valorAnterior: { Nombre: anterior.Nombre, Tipo: anterior.Tipo, Valor: anterior.Valor, Cantidad: anterior.Cantidad },
-        valorNuevo:    { Nombre: nombre, Tipo: datos.Tipo, Valor: datos.Valor, Cantidad: datos.Cantidad },
+        valorAnterior: { Nombre: anterior.Nombre, Tipo: anterior.Tipo, Valor: anterior.Valor, Cantidad: anterior.Cantidad, FechaVencimiento: anterior.FechaVencimiento },
+        valorNuevo:    { Nombre: nombre, Tipo: datos.Tipo, Valor: datos.Valor, Cantidad: datos.Cantidad, FechaVencimiento: datosNormalizados.FechaVencimiento },
         direccionIP: auditCtx.ip, dispositivo: auditCtx.device,
         resultado: 'EXITOSO',
         descripcion: `Producto editado: ${anterior.Nombre} (ID: ${id})`,

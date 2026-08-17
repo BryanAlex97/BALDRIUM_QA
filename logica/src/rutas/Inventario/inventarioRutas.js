@@ -46,7 +46,7 @@ router.post('/', async (req, res) => {
         if (err.message.includes('ya está registrado') || err.message.includes('ya existe')) {
             return res.status(409).json({ error: err.message });
         }
-        if (err.message.includes('requeridos') || err.message.includes('inválido') || err.message.includes('negativ')) {
+        if (err.message.includes('requerid') || err.message.includes('álid') || err.message.includes('negativ')) {
             return res.status(400).json({ error: err.message });
         }
         console.error('Error al crear producto:', err);
@@ -62,7 +62,7 @@ router.put('/:id', async (req, res) => {
         res.json({ mensaje: 'Producto actualizado correctamente.' });
     } catch (err) {
         if (err.message.includes('no encontrado')) return res.status(404).json({ error: err.message });
-        if (err.message.includes('requeridos') || err.message.includes('inválido') || err.message.includes('negativ')) {
+        if (err.message.includes('requerid') || err.message.includes('álid') || err.message.includes('negativ')) {
             return res.status(400).json({ error: err.message });
         }
         console.error('Error al actualizar producto:', err);
