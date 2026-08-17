@@ -41,8 +41,8 @@ const trabajador = {
     actualizarPerfil: (cedula, datos) =>
         _req('PUT', `/trabajadores/${encodeURIComponent(cedula)}/perfil`, datos),
 
-    actualizarContrasena: (cedula, nuevaContrasena) =>
-        _req('PATCH', `/trabajadores/${encodeURIComponent(cedula)}/contrasena`, { nuevaContrasena }),
+    actualizarContrasena: (cedula, nuevaContrasena, requiereCambio = false) =>
+        _req('PATCH', `/trabajadores/${encodeURIComponent(cedula)}/contrasena`, { nuevaContrasena, requiereCambio }),
 
     listarTodosConRoles: () =>
         _req('GET', '/trabajadores'),

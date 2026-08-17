@@ -8,6 +8,7 @@ async function buscarPorCedula(cedula) {
         SELECT
             t.Cedula, t.Contrasena, t.Nombre, t.Celular, t.Telefono,
             t.CorreoElectronico, t.Direccion, t.CodigoTrabajador, t.Activo,
+            t.RequiereCambioContrasena,
             r.ID      AS rolId,
             r.TipoRol AS tipoRol
         FROM trabajador t
@@ -19,7 +20,7 @@ async function buscarPorCedula(cedula) {
     if (!rows || rows.length === 0) return null;
 
     const { Cedula, Contrasena, Nombre, Celular, Telefono,
-        CorreoElectronico, Direccion, CodigoTrabajador, Activo } = rows[0];
+        CorreoElectronico, Direccion, CodigoTrabajador, Activo, RequiereCambioContrasena } = rows[0];
 
     const roles = rows
         .filter(row => row.tipoRol !== null)
@@ -28,7 +29,7 @@ async function buscarPorCedula(cedula) {
     return {
         trabajador: {
             Cedula, Contrasena, Nombre, Celular, Telefono,
-            CorreoElectronico, Direccion, CodigoTrabajador, Activo
+            CorreoElectronico, Direccion, CodigoTrabajador, Activo, RequiereCambioContrasena
         },
         roles
     };
@@ -107,9 +108,12 @@ async function actualizarPerfil(cedula, datos) {
     );
 }
 
-async function actualizarContrasena(cedula, nuevaContrasena) {
+async function actualizarContrasena(cedula, nuevaContrasena, requiereCambio = false) {
     const hash = await bcrypt.hash(nuevaContrasena, SALT_ROUNDS);
-    await pool.execute('UPDATE trabajador SET Contrasena = ? WHERE Cedula = ?', [hash, cedula]);
+    await pool.execute(
+        'UPDATE trabajador SET Contrasena = ?, RequiereCambioContrasena = ? WHERE Cedula = ?',
+        [hash, requiereCambio ? 1 : 0, cedula]
+    );
 }
 
 async function listarTodosConRoles() {

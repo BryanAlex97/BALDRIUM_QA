@@ -119,7 +119,7 @@ router.put('/:cedula/perfil', async (req, res) => {
 // PATCH /trabajadores/:cedula/contrasena
 router.patch('/:cedula/contrasena', async (req, res) => {
     try {
-        await repo.actualizarContrasena(req.params.cedula, req.body.nuevaContrasena);
+        await repo.actualizarContrasena(req.params.cedula, req.body.nuevaContrasena, !!req.body.requiereCambio);
         res.json({ ok: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

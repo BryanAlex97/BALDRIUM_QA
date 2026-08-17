@@ -33,8 +33,8 @@ router.patch('/contrasena', async (req, res) => {
     const { contrasenaActual, nuevaContrasena } = req.body;
     const auditCtx = { ip: extraerIP(req), device: extraerDispositivo(req), actor: req.usuario };
     try {
-        await svc.cambiarContrasena(req.usuario.cedula, contrasenaActual, nuevaContrasena, auditCtx);
-        res.json({ mensaje: 'Contraseña actualizada correctamente.' });
+        const { token } = await svc.cambiarContrasena(req.usuario.cedula, contrasenaActual, nuevaContrasena, auditCtx);
+        res.json({ mensaje: 'Contraseña actualizada correctamente.', token });
     } catch (err) {
         if (err.message.includes('incorrecta') || err.message.includes('requeridas')) {
             return res.status(400).json({ error: err.message });

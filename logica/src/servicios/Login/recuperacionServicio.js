@@ -17,7 +17,7 @@ async function olvideMiContrasena(correo) {
     }
 
     const contrasenaTemp = generarContrasenaTemp();
-    await trabajador.actualizarContrasena(t.Cedula, contrasenaTemp);
+    await trabajador.actualizarContrasena(t.Cedula, contrasenaTemp, true);
     await enviarContrasenaTemp(t.CorreoElectronico, t.Nombre, contrasenaTemp);
 
     return { mensaje: 'Si el correo existe en el sistema, recibirás las instrucciones en breve.' };

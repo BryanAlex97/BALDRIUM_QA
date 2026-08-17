@@ -47,8 +47,10 @@ async function login(cedula, contrasena, auditCtx = {}) {
         throw new Error('Credenciales inválidas');
     }
 
+    const debeCambiarContrasena = !!t.RequiereCambioContrasena;
+
     const token = jwt.sign(
-        { cedula: t.Cedula, nombre: t.Nombre, roles },
+        { cedula: t.Cedula, nombre: t.Nombre, roles, debeCambiarContrasena },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
@@ -73,7 +75,8 @@ async function login(cedula, contrasena, auditCtx = {}) {
             correo:           t.CorreoElectronico,
             direccion:        t.Direccion,
             codigoTrabajador: t.CodigoTrabajador,
-            roles
+            roles,
+            debeCambiarContrasena
         }
     };
 }

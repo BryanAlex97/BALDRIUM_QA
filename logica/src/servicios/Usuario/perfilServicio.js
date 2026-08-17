@@ -1,4 +1,5 @@
 const bcrypt  = require('bcrypt');
+const jwt     = require('jsonwebtoken');
 const { trabajador, auditoria } = require('../../infraestructura/persistenciaCliente');
 
 async function obtenerPerfil(cedula) {
@@ -58,7 +59,9 @@ async function cambiarContrasena(cedula, contrasenaActual, nuevaContrasena, audi
         throw new Error('La contraseña actual es incorrecta.');
     }
 
-    await trabajador.actualizarContrasena(cedula, nuevaContrasena);
+    // requiereCambio=false: limpia el flag de cambio obligatorio (si venía de una
+    // contraseña temporal por recuperación, ya quedó resuelto con este cambio).
+    await trabajador.actualizarContrasena(cedula, nuevaContrasena, false);
 
     auditoria.registrarSistema({
         cedulaTrabajador: cedula,
@@ -68,6 +71,17 @@ async function cambiarContrasena(cedula, contrasenaActual, nuevaContrasena, audi
         resultado: 'EXITOSO',
         descripcion: `Cambio de contraseña exitoso: ${auditCtx.actor?.nombre} (${cedula})`,
     });
+
+    // El token viejo (si el login fue con contraseña temporal) aún trae
+    // debeCambiarContrasena=true incrustado; se reemite uno nuevo ya limpio
+    // para que el front deje de estar bloqueado sin tener que reloguear.
+    const token = jwt.sign(
+        { cedula, nombre: resultado.trabajador.Nombre, roles: resultado.roles, debeCambiarContrasena: false },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+    );
+
+    return { token };
 }
 
 module.exports = { obtenerPerfil, actualizarPerfil, cambiarContrasena };
