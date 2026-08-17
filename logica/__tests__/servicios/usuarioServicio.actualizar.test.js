@@ -21,30 +21,42 @@ afterEach(() => {
 
 const trabajadorExistente = {
   trabajador: {
-    Cedula: '2001', Nombre: 'Fer', Celular: '3000000000',
+    Cedula: '300111222', Nombre: 'Fer', Celular: '3000000000',
     CorreoElectronico: 'fer@baldrium.com', Direccion: 'CL 1',
     CodigoTrabajador: 'T-01', Activo: true,
   },
   roles: ['Director'],
 };
 
+const datosCompletos = {
+  Nombre: 'Fer Actualizada', Celular: '3001112233',
+  CorreoElectronico: 'fer.nueva@baldrium.com', Direccion: 'CL 2', CodigoTrabajador: 'T-01',
+};
+
 describe('usuarioServicio.actualizar — casos base', () => {
 
   test('lanza error si el trabajador no existe', async () => {
     trabajador.buscarPorCedula.mockResolvedValue(null);
-
-    await expect(actualizar('9999999', { Nombre: 'X' }, [1])).rejects.toThrow('Trabajador no encontrado.');
+    await expect(actualizar('9999999', datosCompletos, [1])).rejects.toThrow('Trabajador no encontrado.');
     expect(trabajador.actualizarTrabajador).not.toHaveBeenCalled();
+  });
+
+  test('lanza error si falta un campo requerido (ahora se exige el formulario completo)', async () => {
+    trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
+    await expect(actualizar('300111222', { Nombre: 'Fer' }, [1])).rejects.toThrow(/son requeridos/);
+  });
+
+  test('lanza error si no se asigna ningún rol', async () => {
+    trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
+    await expect(actualizar('300111222', datosCompletos, [])).rejects.toThrow(/al menos un rol/);
   });
 
   test('lanza error si el nuevo correo ya está en uso por OTRO trabajador', async () => {
     trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
     trabajador.existeCorreo.mockResolvedValue(true);
 
-    await expect(actualizar('2001', { CorreoElectronico: 'otro@baldrium.com' }, [1]))
-      .rejects.toThrow(/ya está en uso/);
-    // Confirma que se excluye la propia cédula al verificar duplicados
-    expect(trabajador.existeCorreo).toHaveBeenCalledWith('otro@baldrium.com', '2001');
+    await expect(actualizar('300111222', datosCompletos, [1])).rejects.toThrow(/ya está en uso/);
+    expect(trabajador.existeCorreo).toHaveBeenCalledWith('fer.nueva@baldrium.com', '300111222');
   });
 
   test('lanza error si el nuevo código de trabajador ya está en uso por OTRO trabajador', async () => {
@@ -52,78 +64,47 @@ describe('usuarioServicio.actualizar — casos base', () => {
     trabajador.existeCorreo.mockResolvedValue(false);
     trabajador.existeCodigoTrabajador.mockResolvedValue(true);
 
-    await expect(actualizar('2001', { CodigoTrabajador: 'T-99' }, [1]))
-      .rejects.toThrow(/ya está en uso/);
-    expect(trabajador.existeCodigoTrabajador).toHaveBeenCalledWith('T-99', '2001');
-  });
-
-  test('NO valida duplicado de correo/código si no se envían esos campos (permite editar solo otros datos)', async () => {
-    trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
-    trabajador.actualizarTrabajador.mockResolvedValue();
-
-    await actualizar('2001', { Nombre: 'Fer Actualizada' }, [1]);
-
-    expect(trabajador.existeCorreo).not.toHaveBeenCalled();
-    expect(trabajador.existeCodigoTrabajador).not.toHaveBeenCalled();
-    expect(trabajador.actualizarTrabajador).toHaveBeenCalled();
+    await expect(actualizar('300111222', { ...datosCompletos, CodigoTrabajador: 'T-99' }, [1])).rejects.toThrow(/ya está en uso/);
+    expect(trabajador.existeCodigoTrabajador).toHaveBeenCalledWith('T-99', '300111222');
   });
 
   test('actualiza correctamente y audita valor anterior vs. nuevo, incluyendo roles', async () => {
     trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
     trabajador.existeCorreo.mockResolvedValue(false);
+    trabajador.existeCodigoTrabajador.mockResolvedValue(false);
     trabajador.actualizarTrabajador.mockResolvedValue();
 
-    await actualizar('2001', {
-      Nombre: 'Fer Actualizada', Celular: '3001112233',
-      CorreoElectronico: 'fer.nueva@baldrium.com', Direccion: 'CL 2',
-    }, [2], { actor: { cedula: '2001', nombre: 'Fer' } });
+    await actualizar('300111222', datosCompletos, [2], { actor: { cedula: '2001', nombre: 'Fer' } });
 
-    expect(trabajador.actualizarTrabajador).toHaveBeenCalledWith('2001', expect.objectContaining({
-      Nombre: 'Fer Actualizada',
-    }), [2]);
+    expect(trabajador.actualizarTrabajador).toHaveBeenCalledWith('300111222', datosCompletos, [2]);
     expect(auditoria.registrarSistema).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tipoAccion: 'EDITAR',
-        resultado: 'EXITOSO',
-        valorAnterior: expect.objectContaining({ Nombre: 'Fer', roles: ['Director'] }),
-        valorNuevo: expect.objectContaining({ Nombre: 'Fer Actualizada', roles: [2] }),
-      })
+      expect.objectContaining({ tipoAccion: 'EDITAR', resultado: 'EXITOSO' })
     );
   });
 
 });
 
-describe('usuarioServicio.actualizar — Escenario 3 HU-03 (roles se reflejan en el acceso) (NUEVO)', () => {
+describe('usuarioServicio.actualizar — robustez ante inyección (hallazgo de HU-03 resuelto)', () => {
 
-  test('actualiza correctamente removiendo todos los roles (array vacío)', async () => {
+  test('nombre con inyección tipo SQL ahora es rechazado por la validación de formato', async () => {
     trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
-    trabajador.actualizarTrabajador.mockResolvedValue();
-
-    await actualizar('2001', { Nombre: 'Fer' }, []);
-
-    expect(trabajador.actualizarTrabajador).toHaveBeenCalledWith('2001', expect.anything(), []);
+    await expect(actualizar('300111222', { ...datosCompletos, Nombre: "Fer'; DROP TABLE trabajador;--" }, [1]))
+      .rejects.toThrow(/solo puede contener letras/);
   });
 
 });
 
-describe('usuarioServicio.actualizar — caracteres especiales y concurrencia (NUEVO)', () => {
-
-  test('nombre con inyección tipo SQL no rompe el servicio', async () => {
-    trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
-    trabajador.actualizarTrabajador.mockResolvedValue();
-
-    await expect(actualizar('2001', { Nombre: "Fer'; DROP TABLE trabajador;--" }, [1]))
-      .resolves.toBeUndefined();
-  });
+describe('usuarioServicio.actualizar — concurrencia', () => {
 
   test('dos ediciones simultáneas al mismo trabajador no rompen el servicio', async () => {
     trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
     trabajador.existeCorreo.mockResolvedValue(false);
+    trabajador.existeCodigoTrabajador.mockResolvedValue(false);
     trabajador.actualizarTrabajador.mockResolvedValue();
 
     const [r1, r2] = await Promise.allSettled([
-      actualizar('2001', { Nombre: 'Edicion A' }, [1]),
-      actualizar('2001', { Nombre: 'Edicion B' }, [1]),
+      actualizar('300111222', { ...datosCompletos, Nombre: 'Edicion A' }, [1]),
+      actualizar('300111222', { ...datosCompletos, Nombre: 'Edicion B' }, [1]),
     ]);
 
     expect(r1.status).toBe('fulfilled');

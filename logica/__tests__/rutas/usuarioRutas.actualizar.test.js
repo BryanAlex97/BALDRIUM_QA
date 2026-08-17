@@ -35,40 +35,37 @@ function generarToken(roles) {
 
 const trabajadorExistente = {
   trabajador: {
-    Cedula: '2001', Nombre: 'Fer', Celular: '3000000000',
-    CorreoElectronico: 'fer@baldrium.com', Direccion: 'CL 1',
-    CodigoTrabajador: 'T-01', Activo: true,
+    Cedula: '300111222', Nombre: 'Fer', Celular: '3000000000',
+    CorreoElectronico: 'fer@baldrium.com', Direccion: 'CL 1', CodigoTrabajador: 'T-01', Activo: true,
   },
   roles: ['Director'],
+};
+
+const datosCompletos = {
+  Nombre: 'Fer Actualizada', Celular: '3001112233',
+  CorreoElectronico: 'fer.nueva@baldrium.com', Direccion: 'CL 2', CodigoTrabajador: 'T-01',
 };
 
 describe('PUT /api/Usuario/:cedula — casos base', () => {
 
   test('responde 401 si no se envía token', async () => {
-    const res = await request(app).put('/api/Usuario/2001').send({ Nombre: 'X' });
+    const res = await request(app).put('/api/Usuario/300111222').send(datosCompletos);
     expect(res.status).toBe(401);
   });
 
   test('responde 403 si el usuario no tiene el rol Director', async () => {
     const token = generarToken(['Asesor Comercial']);
-
-    const res = await request(app)
-      .put('/api/Usuario/2001')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ Nombre: 'X' });
-
+    const res = await request(app).put('/api/Usuario/300111222').set('Authorization', `Bearer ${token}`).send(datosCompletos);
     expect(res.status).toBe(403);
   });
 
   test('responde 404 si el trabajador no existe (siendo Director)', async () => {
     const token = generarToken(['Director']);
     trabajador.buscarPorCedula.mockResolvedValue(null);
-
     const res = await request(app)
       .put('/api/Usuario/9999999')
       .set('Authorization', `Bearer ${token}`)
-      .send({ Nombre: 'X' });
-
+      .send({ ...datosCompletos, roles: [1] });
     expect(res.status).toBe(404);
   });
 
@@ -78,9 +75,9 @@ describe('PUT /api/Usuario/:cedula — casos base', () => {
     trabajador.existeCorreo.mockResolvedValue(true);
 
     const res = await request(app)
-      .put('/api/Usuario/2001')
+      .put('/api/Usuario/300111222')
       .set('Authorization', `Bearer ${token}`)
-      .send({ CorreoElectronico: 'otro@baldrium.com' });
+      .send({ ...datosCompletos, roles: [1] });
 
     expect(res.status).toBe(409);
   });
@@ -89,12 +86,13 @@ describe('PUT /api/Usuario/:cedula — casos base', () => {
     const token = generarToken(['Director']);
     trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
     trabajador.existeCorreo.mockResolvedValue(false);
+    trabajador.existeCodigoTrabajador.mockResolvedValue(false);
     trabajador.actualizarTrabajador.mockResolvedValue();
 
     const res = await request(app)
-      .put('/api/Usuario/2001')
+      .put('/api/Usuario/300111222')
       .set('Authorization', `Bearer ${token}`)
-      .send({ Nombre: 'Fer Actualizada', roles: [2] });
+      .send({ ...datosCompletos, roles: [2] });
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('mensaje');
@@ -102,30 +100,30 @@ describe('PUT /api/Usuario/:cedula — casos base', () => {
 
 });
 
-describe('PUT /api/Usuario/:cedula — robustez y concurrencia (NUEVO)', () => {
+describe('PUT /api/Usuario/:cedula — robustez (hallazgo de HU-03 resuelto)', () => {
 
-  test('nombre con inyección tipo SQL no rompe el servidor (no 500)', async () => {
+  test('nombre con inyección SQL ahora es rechazado con 400 (antes: aceptado)', async () => {
     const token = generarToken(['Director']);
     trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
-    trabajador.actualizarTrabajador.mockResolvedValue();
 
     const res = await request(app)
-      .put('/api/Usuario/2001')
+      .put('/api/Usuario/300111222')
       .set('Authorization', `Bearer ${token}`)
-      .send({ Nombre: "Fer'; DROP TABLE trabajador;--" });
+      .send({ ...datosCompletos, Nombre: "Fer'; DROP TABLE trabajador;--", roles: [1] });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
   });
 
   test('dos ediciones simultáneas al mismo trabajador responden sin romper el servidor', async () => {
     const token = generarToken(['Director']);
     trabajador.buscarPorCedula.mockResolvedValue(trabajadorExistente);
     trabajador.existeCorreo.mockResolvedValue(false);
+    trabajador.existeCodigoTrabajador.mockResolvedValue(false);
     trabajador.actualizarTrabajador.mockResolvedValue();
 
     const [res1, res2] = await Promise.all([
-      request(app).put('/api/Usuario/2001').set('Authorization', `Bearer ${token}`).send({ Nombre: 'Edicion A' }),
-      request(app).put('/api/Usuario/2001').set('Authorization', `Bearer ${token}`).send({ Nombre: 'Edicion B' }),
+      request(app).put('/api/Usuario/300111222').set('Authorization', `Bearer ${token}`).send({ ...datosCompletos, Nombre: 'Edicion A', roles: [1] }),
+      request(app).put('/api/Usuario/300111222').set('Authorization', `Bearer ${token}`).send({ ...datosCompletos, Nombre: 'Edicion B', roles: [1] }),
     ]);
 
     expect(res1.status).not.toBe(500);

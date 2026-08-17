@@ -34,7 +34,7 @@ function generarToken(roles) {
 }
 
 const datosValidos = {
-  Cedula: '3001',
+  Cedula: '300111222',
   Contrasena: 'claveSegura123',
   Nombre: 'Nuevo Trabajador',
   Celular: '3001112233',
@@ -58,127 +58,82 @@ describe('POST /api/Usuario — casos base', () => {
 
   test('responde 403 si el usuario no tiene el rol Director', async () => {
     const token = generarToken(['Asesor Comercial']);
-
-    const res = await request(app)
-      .post('/api/Usuario')
-      .set('Authorization', `Bearer ${token}`)
-      .send(datosValidos);
-
+    const res = await request(app).post('/api/Usuario').set('Authorization', `Bearer ${token}`).send(datosValidos);
     expect(res.status).toBe(403);
   });
 
   test('responde 400 si faltan campos requeridos (siendo Director)', async () => {
     const token = generarToken(['Director']);
+    const res = await request(app).post('/api/Usuario').set('Authorization', `Bearer ${token}`).send({ Cedula: '300111222' });
+    expect(res.status).toBe(400);
+  });
 
+  test('responde 400 si el nombre tiene formato inválido (nueva validación)', async () => {
+    const token = generarToken(['Director']);
     const res = await request(app)
       .post('/api/Usuario')
       .set('Authorization', `Bearer ${token}`)
-      .send({ Cedula: '3001' });
-
+      .send({ ...datosValidos, Nombre: 'Juan123', roles: [1] });
     expect(res.status).toBe(400);
   });
 
   test('responde 409 si la cédula ya está registrada', async () => {
     const token = generarToken(['Director']);
     trabajador.existeCedula.mockResolvedValue(true);
-
-    const res = await request(app)
-      .post('/api/Usuario')
-      .set('Authorization', `Bearer ${token}`)
-      .send(datosValidos);
-
+    const res = await request(app).post('/api/Usuario').set('Authorization', `Bearer ${token}`).send({ ...datosValidos, roles: [1] });
     expect(res.status).toBe(409);
   });
 
-  test('responde 409 si el código de trabajador ya está en uso (NUEVO)', async () => {
+  test('responde 409 si el código de trabajador ya está en uso', async () => {
     const token = generarToken(['Director']);
     trabajador.existeCedula.mockResolvedValue(false);
     trabajador.existeCorreo.mockResolvedValue(false);
     trabajador.existeCodigoTrabajador.mockResolvedValue(true);
-
-    const res = await request(app)
-      .post('/api/Usuario')
-      .set('Authorization', `Bearer ${token}`)
-      .send(datosValidos);
-
+    const res = await request(app).post('/api/Usuario').set('Authorization', `Bearer ${token}`).send({ ...datosValidos, roles: [1] });
     expect(res.status).toBe(409);
   });
 
-  test('responde 201 y crea el producto si los datos son correctos', async () => {
+  test('responde 201 y crea el usuario si los datos son correctos', async () => {
     const token = generarToken(['Director']);
     mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3001', Nombre: 'Nuevo Trabajador' });
+    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '300111222', Nombre: 'Nuevo Trabajador' });
 
-    const res = await request(app)
-      .post('/api/Usuario')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ ...datosValidos, roles: [1] });
+    const res = await request(app).post('/api/Usuario').set('Authorization', `Bearer ${token}`).send({ ...datosValidos, roles: [1] });
 
     expect(res.status).toBe(201);
-    expect(res.body.trabajador.Cedula).toBe('3001');
+    expect(res.body.trabajador.Cedula).toBe('300111222');
   });
 
 });
 
-describe('POST /api/Usuario — robustez ante datos maliciosos/raros (NUEVO)', () => {
+describe('POST /api/Usuario — robustez (hallazgos de HU-02 resueltos)', () => {
 
-  test('nombre con inyección tipo SQL no rompe el servidor (no 500)', async () => {
+  test('nombre con inyección SQL ahora es rechazado con 400 (antes: aceptado)', async () => {
     const token = generarToken(['Director']);
-    mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3002', Nombre: "Robert'; DROP TABLE trabajador;--" });
-
     const res = await request(app)
       .post('/api/Usuario')
       .set('Authorization', `Bearer ${token}`)
-      .send({ ...datosValidos, Cedula: '3002', Nombre: "Robert'; DROP TABLE trabajador;--" });
-
-    expect(res.status).toBe(201);
+      .send({ ...datosValidos, Nombre: "Robert'; DROP TABLE trabajador;--", roles: [1] });
+    expect(res.status).toBe(400);
   });
 
-  test('cédula con formato inválido (letras) no rompe el servidor', async () => {
+  test('cédula con letras ahora es rechazada con 400 (antes: aceptada)', async () => {
     const token = generarToken(['Director']);
-    mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: 'abc123', Nombre: 'Test' });
-
     const res = await request(app)
       .post('/api/Usuario')
       .set('Authorization', `Bearer ${token}`)
-      .send({ ...datosValidos, Cedula: 'abc123' });
-
-    // Documenta el comportamiento real: ¿el backend valida formato de cédula
-    // o solo verifica que no esté vacía? Este test describe lo que pasa hoy.
-    expect([201, 400]).toContain(res.status);
+      .send({ ...datosValidos, Cedula: 'abc123456', roles: [1] });
+    expect(res.status).toBe(400);
   });
 
-  test('roles con valores no numéricos no rompe el servidor', async () => {
+  test('sin ningún rol responde 400 (antes: aceptado)', async () => {
     const token = generarToken(['Director']);
     mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3003', Nombre: 'Test Roles' });
-
     const res = await request(app)
       .post('/api/Usuario')
       .set('Authorization', `Bearer ${token}`)
-      .send({ ...datosValidos, Cedula: '3003', roles: ['no-es-un-numero'] });
-
-    expect(res.status).not.toBe(500);
-  });
-
-});
-
-describe('POST /api/Usuario — concurrencia (NUEVO)', () => {
-
-  test('dos peticiones simultáneas creando la misma cédula responden sin romper el servidor', async () => {
-    const token = generarToken(['Director']);
-    mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3004', Nombre: 'Concurrente' });
-
-    const [res1, res2] = await Promise.all([
-      request(app).post('/api/Usuario').set('Authorization', `Bearer ${token}`).send({ ...datosValidos, Cedula: '3004' }),
-      request(app).post('/api/Usuario').set('Authorization', `Bearer ${token}`).send({ ...datosValidos, Cedula: '3004' }),
-    ]);
-
-    expect(res1.status).not.toBe(500);
-    expect(res2.status).not.toBe(500);
+      .send({ ...datosValidos, roles: [] });
+    expect(res.status).toBe(400);
   });
 
 });

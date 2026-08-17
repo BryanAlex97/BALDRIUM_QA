@@ -33,14 +33,14 @@ describe('perfilServicio.obtenerPerfil', () => {
   test('devuelve el perfil correctamente mapeado', async () => {
     trabajador.buscarPorCedula.mockResolvedValue({
       trabajador: {
-        Cedula: '2001', CodigoTrabajador: 'T-01', Nombre: 'Fer',
+        Cedula: '300111222', CodigoTrabajador: 'T-01', Nombre: 'Fer',
         Celular: '3000000000', Telefono: null, CorreoElectronico: 'fer@baldrium.com',
         Direccion: 'CL 1',
       },
       roles: ['Director'],
     });
-    const perfil = await obtenerPerfil('2001');
-    expect(perfil.cedula).toBe('2001');
+    const perfil = await obtenerPerfil('300111222');
+    expect(perfil.cedula).toBe('300111222');
     expect(perfil.roles).toEqual(['Director']);
   });
 
@@ -51,20 +51,25 @@ describe('perfilServicio.actualizarPerfil', () => {
   const datosValidos = { Nombre: 'Fer Actualizada', Celular: '3001112233', CorreoElectronico: 'fer.nueva@baldrium.com', Direccion: 'CL 2' };
 
   test('lanza error si falta un campo requerido', async () => {
-    await expect(actualizarPerfil('2001', { Nombre: 'Fer', Celular: '300' }))
+    await expect(actualizarPerfil('300111222', { Nombre: 'Fer', Celular: '3001112233' }))
       .rejects.toThrow('Nombre, celular, correo y dirección son requeridos.');
+  });
+
+  test('lanza error si el nombre tiene formato inválido (nueva validación)', async () => {
+    await expect(actualizarPerfil('300111222', { ...datosValidos, Nombre: 'Fer123' }))
+      .rejects.toThrow(/solo puede contener letras/);
   });
 
   test('actualiza correctamente y audita el cambio', async () => {
     trabajador.buscarPorCedula.mockResolvedValue({
-      trabajador: { Cedula: '2001', Nombre: 'Fer', Celular: '3000000000', CorreoElectronico: 'fer@baldrium.com', Direccion: 'CL 1' },
+      trabajador: { Cedula: '300111222', Nombre: 'Fer', Celular: '3000000000', CorreoElectronico: 'fer@baldrium.com', Direccion: 'CL 1' },
       roles: ['Director'],
     });
     trabajador.actualizarPerfil.mockResolvedValue();
 
-    await actualizarPerfil('2001', datosValidos, { actor: { nombre: 'Fer' } });
+    await actualizarPerfil('300111222', datosValidos, { actor: { nombre: 'Fer' } });
 
-    expect(trabajador.actualizarPerfil).toHaveBeenCalledWith('2001', datosValidos);
+    expect(trabajador.actualizarPerfil).toHaveBeenCalledWith('300111222', datosValidos);
     expect(auditoria.registrarSistema).toHaveBeenCalledWith(
       expect.objectContaining({ tipoAccion: 'EDITAR', resultado: 'EXITOSO' })
     );
@@ -76,7 +81,7 @@ describe('perfilServicio.actualizarPerfil — Escenario 2 (campos protegidos)', 
 
   test('ignora intentos de modificar roles o estado aunque vengan en el payload', async () => {
     trabajador.buscarPorCedula.mockResolvedValue({
-      trabajador: { Cedula: '2001', Nombre: 'Fer', Celular: '3000000000', CorreoElectronico: 'fer@baldrium.com', Direccion: 'CL 1' },
+      trabajador: { Cedula: '300111222', Nombre: 'Fer', Celular: '3000000000', CorreoElectronico: 'fer@baldrium.com', Direccion: 'CL 1' },
       roles: ['Director'],
     });
     trabajador.actualizarPerfil.mockResolvedValue();
@@ -86,9 +91,9 @@ describe('perfilServicio.actualizarPerfil — Escenario 2 (campos protegidos)', 
       roles: ['Asesor Comercial'], Activo: false,
     };
 
-    await actualizarPerfil('2001', payloadConCamposProhibidos);
+    await actualizarPerfil('300111222', payloadConCamposProhibidos);
 
-    expect(trabajador.actualizarPerfil).toHaveBeenCalledWith('2001', {
+    expect(trabajador.actualizarPerfil).toHaveBeenCalledWith('300111222', {
       Nombre: 'Fer Actualizada', Celular: '3001112233', CorreoElectronico: 'fer.nueva@baldrium.com', Direccion: 'CL 2',
     });
   });
@@ -98,35 +103,39 @@ describe('perfilServicio.actualizarPerfil — Escenario 2 (campos protegidos)', 
 describe('perfilServicio.cambiarContrasena', () => {
 
   test('lanza error si faltan la contraseña actual o la nueva', async () => {
-    await expect(cambiarContrasena('2001', '', 'nueva123')).rejects.toThrow('La contraseña actual y la nueva son requeridas.');
+    await expect(cambiarContrasena('300111222', '', 'nueva123')).rejects.toThrow('La contraseña actual y la nueva son requeridas.');
   });
 
-  test('lanza error si el usuario no existe', async () => {
+  test('lanza error si la nueva contraseña tiene menos de 6 caracteres', async () => {
+    await expect(cambiarContrasena('300111222', 'actual123', '123')).rejects.toThrow(/al menos 6 caracteres/);
+  });
+
+  test('lanza error si el usuario no existe (con una nueva contraseña válida en longitud)', async () => {
     trabajador.buscarPorCedula.mockResolvedValue(null);
-    await expect(cambiarContrasena('9999999', 'actual', 'nueva')).rejects.toThrow('Usuario no encontrado.');
+    await expect(cambiarContrasena('9999999', 'actual123', 'nuevaClave123')).rejects.toThrow('Usuario no encontrado.');
   });
 
   test('lanza error y audita fallo si la contraseña actual es incorrecta', async () => {
     const bcrypt = require('bcrypt');
-    trabajador.buscarPorCedula.mockResolvedValue({ trabajador: { Cedula: '2001', Contrasena: 'hashReal' }, roles: [] });
+    trabajador.buscarPorCedula.mockResolvedValue({ trabajador: { Cedula: '300111222', Contrasena: 'hashReal' }, roles: [] });
     jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
 
-    await expect(cambiarContrasena('2001', 'mala', 'nueva123')).rejects.toThrow('La contraseña actual es incorrecta.');
+    await expect(cambiarContrasena('300111222', 'mala1234', 'nuevaClave123')).rejects.toThrow('La contraseña actual es incorrecta.');
     expect(auditoria.registrarSistema).toHaveBeenCalledWith(expect.objectContaining({ resultado: 'FALLIDO' }));
   });
 
   test('cambia la contraseña correctamente, audita el éxito, y reemite un token con debeCambiarContrasena=false', async () => {
     const bcrypt = require('bcrypt');
     trabajador.buscarPorCedula.mockResolvedValue({
-      trabajador: { Cedula: '2001', Nombre: 'Fer', Contrasena: 'hashReal' },
+      trabajador: { Cedula: '300111222', Nombre: 'Fer', Contrasena: 'hashReal' },
       roles: ['Director'],
     });
     jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
     trabajador.actualizarContrasena.mockResolvedValue();
 
-    const resultado = await cambiarContrasena('2001', 'actual123', 'nueva456', { actor: { nombre: 'Fer' } });
+    const resultado = await cambiarContrasena('300111222', 'actual123', 'nuevaClave456', { actor: { nombre: 'Fer' } });
 
-    expect(trabajador.actualizarContrasena).toHaveBeenCalledWith('2001', 'nueva456', false);
+    expect(trabajador.actualizarContrasena).toHaveBeenCalledWith('300111222', 'nuevaClave456', false);
     expect(auditoria.registrarSistema).toHaveBeenCalledWith(expect.objectContaining({ resultado: 'EXITOSO' }));
 
     expect(resultado).toHaveProperty('token');

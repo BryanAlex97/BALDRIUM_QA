@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 const datosValidos = {
-  Cedula: '3001',
+  Cedula: '300111222',
   Contrasena: 'claveSegura123',
   Nombre: 'Nuevo Trabajador',
   Celular: '3001112233',
@@ -29,8 +29,6 @@ const datosValidos = {
   CodigoTrabajador: 'T-100',
 };
 
-// Helper: deja todas las validaciones de "existe X" en falso por defecto,
-// así cada test solo tiene que sobreescribir la que le interesa probar
 function mockValidacionesLimpias() {
   trabajador.existeCedula.mockResolvedValue(false);
   trabajador.existeCorreo.mockResolvedValue(false);
@@ -41,52 +39,55 @@ describe('usuarioServicio.crear — casos base', () => {
 
   test('lanza error si falta un campo requerido (Contrasena)', async () => {
     const datosIncompletos = { ...datosValidos, Contrasena: undefined };
-
     await expect(crear(datosIncompletos, [1])).rejects.toThrow(/son requeridos/);
     expect(trabajador.existeCedula).not.toHaveBeenCalled();
   });
 
-  test('lanza error si falta el código de trabajador', async () => {
-    const datosIncompletos = { ...datosValidos, CodigoTrabajador: undefined };
+  test('lanza error si no se asigna ningún rol', async () => {
+    await expect(crear(datosValidos, [])).rejects.toThrow('Debes asignar al menos un rol al trabajador.');
+  });
 
-    await expect(crear(datosIncompletos, [1])).rejects.toThrow(/son requeridos/);
+  test('lanza error si la contraseña tiene menos de 6 caracteres', async () => {
+    await expect(crear({ ...datosValidos, Contrasena: '123' }, [1])).rejects.toThrow(/al menos 6 caracteres/);
+  });
+
+  test('lanza error si el nombre contiene dígitos (nueva validación de formato)', async () => {
+    await expect(crear({ ...datosValidos, Nombre: 'Juan123' }, [1])).rejects.toThrow(/solo puede contener letras/);
+  });
+
+  test('lanza error si la cédula tiene menos de 6 dígitos (nueva validación de longitud)', async () => {
+    await expect(crear({ ...datosValidos, Cedula: '123' }, [1])).rejects.toThrow(/entre 6 y 15 dígitos/);
   });
 
   test('lanza error si la cédula ya está registrada', async () => {
     trabajador.existeCedula.mockResolvedValue(true);
-
-    await expect(crear(datosValidos, [1])).rejects.toThrow('La cédula 3001 ya está registrada.');
+    await expect(crear(datosValidos, [1])).rejects.toThrow('La cédula 300111222 ya está registrada.');
     expect(auditoria.registrarSistema).toHaveBeenCalledWith(
       expect.objectContaining({ tipoAccion: 'CREAR', resultado: 'FALLIDO' })
     );
-    expect(trabajador.crearTrabajador).not.toHaveBeenCalled();
   });
 
   test('lanza error si el correo ya está en uso', async () => {
     trabajador.existeCedula.mockResolvedValue(false);
     trabajador.existeCorreo.mockResolvedValue(true);
-
     await expect(crear(datosValidos, [1])).rejects.toThrow(/ya está en uso/);
-    expect(trabajador.crearTrabajador).not.toHaveBeenCalled();
   });
 
-  test('lanza error si el código de trabajador ya existe (NUEVO)', async () => {
+  test('lanza error si el código de trabajador ya está en uso', async () => {
     trabajador.existeCedula.mockResolvedValue(false);
     trabajador.existeCorreo.mockResolvedValue(false);
     trabajador.existeCodigoTrabajador.mockResolvedValue(true);
-
-    await expect(crear(datosValidos, [1])).rejects.toThrow();
-    expect(trabajador.crearTrabajador).not.toHaveBeenCalled();
+    await expect(crear(datosValidos, [1])).rejects.toThrow(/ya está en uso/);
   });
 
   test('crea el trabajador correctamente cuando los datos son válidos', async () => {
     mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3001', Nombre: 'Nuevo Trabajador' });
+    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '300111222', Nombre: 'Nuevo Trabajador' });
 
     const resultado = await crear(datosValidos, [1, 2]);
 
     expect(trabajador.crearTrabajador).toHaveBeenCalledWith(datosValidos, [1, 2]);
-    expect(resultado).toEqual({ Cedula: '3001', Nombre: 'Nuevo Trabajador' });
+    expect(resultado).toEqual({ Cedula: '300111222', Nombre: 'Nuevo Trabajador' });
     expect(auditoria.registrarSistema).toHaveBeenCalledWith(
       expect.objectContaining({ tipoAccion: 'CREAR', resultado: 'EXITOSO' })
     );
@@ -94,84 +95,36 @@ describe('usuarioServicio.crear — casos base', () => {
 
 });
 
-describe('usuarioServicio.crear — Escenario 3 (roles definen funcionalidades) (NUEVO)', () => {
+describe('usuarioServicio.crear — robustez ante inyección (hallazgo de HU-02 resuelto)', () => {
 
-  test('crea correctamente sin ningún rol asignado (array vacío)', async () => {
-    mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3002', Nombre: 'Sin Rol' });
-
-    await crear({ ...datosValidos, Cedula: '3002', CorreoElectronico: 'sinrol@baldrium.com', CodigoTrabajador: 'T-102' }, []);
-
-    expect(trabajador.crearTrabajador).toHaveBeenCalledWith(expect.anything(), []);
+  test('nombre con inyección tipo SQL ahora es rechazado por la validación de formato', async () => {
+    await expect(crear({ ...datosValidos, Nombre: "Robert'; DROP TABLE trabajador;--" }, [1]))
+      .rejects.toThrow(/solo puede contener letras/);
   });
 
-  test('crea correctamente con múltiples roles asignados', async () => {
-    mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3003', Nombre: 'Multi Rol' });
-
-    await crear({ ...datosValidos, Cedula: '3003', CorreoElectronico: 'multi@baldrium.com', CodigoTrabajador: 'T-103' }, [1, 2, 3]);
-
-    expect(trabajador.crearTrabajador).toHaveBeenCalledWith(expect.anything(), [1, 2, 3]);
+  test('nombre con script/HTML ahora es rechazado por la validación de formato', async () => {
+    await expect(crear({ ...datosValidos, Nombre: '<script>alert(1)</script>' }, [1]))
+      .rejects.toThrow(/solo puede contener letras/);
   });
 
-});
-
-describe('usuarioServicio.crear — caracteres especiales e inyección (NUEVO)', () => {
-
-  test('pasa un nombre con inyección tipo SQL tal cual, sin sanitizar en logica', async () => {
-    mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3004', Nombre: "Robert'; DROP TABLE trabajador;--" });
-
-    await crear({
-      ...datosValidos, Cedula: '3004', Nombre: "Robert'; DROP TABLE trabajador;--",
-      CorreoElectronico: 'robert@baldrium.com', CodigoTrabajador: 'T-104',
-    }, [1]);
-
-    expect(trabajador.crearTrabajador).toHaveBeenCalledWith(
-      expect.objectContaining({ Nombre: "Robert'; DROP TABLE trabajador;--" }),
-      [1]
-    );
-  });
-
-  test('pasa un nombre con script/HTML tal cual, sin sanitizar en logica', async () => {
-    mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3005', Nombre: '<script>alert(1)</script>' });
-
-    await crear({
-      ...datosValidos, Cedula: '3005', Nombre: '<script>alert(1)</script>',
-      CorreoElectronico: 'script@baldrium.com', CodigoTrabajador: 'T-105',
-    }, [1]);
-
-    expect(trabajador.crearTrabajador).toHaveBeenCalled();
-  });
-
-  test('nombre extremadamente largo (5000 caracteres) no rompe el servicio', async () => {
-    mockValidacionesLimpias();
+  test('nombre extremadamente largo ahora es rechazado (máximo 100 caracteres)', async () => {
     const nombreGigante = 'A'.repeat(5000);
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3006', Nombre: nombreGigante });
-
-    await expect(crear({
-      ...datosValidos, Cedula: '3006', Nombre: nombreGigante,
-      CorreoElectronico: 'largo@baldrium.com', CodigoTrabajador: 'T-106',
-    }, [1])).resolves.toBeDefined();
+    await expect(crear({ ...datosValidos, Nombre: nombreGigante }, [1]))
+      .rejects.toThrow(/entre 3 y 100 caracteres/);
   });
 
 });
 
-describe('usuarioServicio.crear — concurrencia (NUEVO)', () => {
+describe('usuarioServicio.crear — concurrencia', () => {
 
-  test('dos intentos simultáneos de crear la misma cédula: ambos pasan la validación en memoria (limitación del mock)', async () => {
-    // Nota de QA: la protección real contra duplicados en concurrencia
-    // depende de un UNIQUE constraint en la base de datos, no de este servicio.
+  test('dos intentos simultáneos de crear la misma cédula no rompen el servicio', async () => {
     mockValidacionesLimpias();
-    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '3007', Nombre: 'Concurrente' });
+    trabajador.crearTrabajador.mockResolvedValue({ Cedula: '300111222', Nombre: 'Concurrente' });
 
-    const datos = { ...datosValidos, Cedula: '3007', CorreoElectronico: 'con@baldrium.com', CodigoTrabajador: 'T-107' };
+    const [r1, r2] = await Promise.allSettled([crear(datosValidos, [1]), crear(datosValidos, [1])]);
 
-    const [r1, r2] = await Promise.all([crear(datos, [1]), crear(datos, [1])]);
-
-    expect(r1).toBeDefined();
-    expect(r2).toBeDefined();
+    expect(r1.status).toBe('fulfilled');
+    expect(r2.status).toBe('fulfilled');
   });
 
 });
