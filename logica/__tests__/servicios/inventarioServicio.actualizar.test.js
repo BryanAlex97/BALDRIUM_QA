@@ -19,7 +19,7 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-const productoAnterior = { ID: 1, Nombre: 'Olla', Tipo: 'Inventario de cocina', Valor: 100, Cantidad: 10 };
+const productoAnterior = { ID: 1, Nombre: 'Olla', Tipo: 'Inventario de cocina', Valor: 100, Cantidad: 10, FechaVencimiento: null };
 const datosValidos = { Nombre: 'Olla', Tipo: 'Inventario de cocina', Valor: 100, Cantidad: 10 };
 
 describe('inventarioServicio.actualizar — validaciones', () => {
@@ -37,6 +37,51 @@ describe('inventarioServicio.actualizar — validaciones', () => {
     inventario.buscarPorId.mockResolvedValue(productoAnterior);
     inventario.existeNombre.mockResolvedValue(true);
     await expect(actualizar(1, { ...datosValidos, Nombre: 'Sartén' })).rejects.toThrow(/Ya existe otro producto/);
+  });
+
+});
+
+describe('inventarioServicio.actualizar — Descripción y Fecha de vencimiento', () => {
+
+  test('actualiza correctamente el campo Descripción', async () => {
+    inventario.buscarPorId.mockResolvedValue(productoAnterior);
+    inventario.existeNombre.mockResolvedValue(false);
+
+    await actualizar(1, { ...datosValidos, Descripcion: 'Olla de acero, capacidad 5L' });
+
+    expect(inventario.actualizarProducto).toHaveBeenCalledWith(
+      1, expect.objectContaining({ Descripcion: 'Olla de acero, capacidad 5L' })
+    );
+  });
+
+  test('editar a tipo Alimentacion sin fecha de vencimiento lanza error', async () => {
+    inventario.buscarPorId.mockResolvedValue(productoAnterior);
+    inventario.existeNombre.mockResolvedValue(false);
+
+    await expect(actualizar(1, { ...datosValidos, Tipo: 'Alimentacion' }))
+      .rejects.toThrow('La fecha de vencimiento es requerida para productos de tipo Alimentación.');
+  });
+
+  test('editar a tipo Alimentacion con fecha válida se actualiza correctamente', async () => {
+    inventario.buscarPorId.mockResolvedValue(productoAnterior);
+    inventario.existeNombre.mockResolvedValue(false);
+
+    await actualizar(1, { ...datosValidos, Tipo: 'Alimentacion', FechaVencimiento: '2026-12-31' });
+
+    expect(inventario.actualizarProducto).toHaveBeenCalledWith(
+      1, expect.objectContaining({ FechaVencimiento: '2026-12-31' })
+    );
+  });
+
+  test('editar un producto que NO es Alimentacion normaliza la fecha de vencimiento a null aunque se envíe', async () => {
+    inventario.buscarPorId.mockResolvedValue(productoAnterior);
+    inventario.existeNombre.mockResolvedValue(false);
+
+    await actualizar(1, { ...datosValidos, FechaVencimiento: '2026-01-01' });
+
+    expect(inventario.actualizarProducto).toHaveBeenCalledWith(
+      1, expect.objectContaining({ FechaVencimiento: null })
+    );
   });
 
 });
